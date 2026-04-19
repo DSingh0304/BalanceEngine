@@ -1,0 +1,65 @@
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+ 
+# Build Output 
+dist/
+build/
+out/
+client/dist/
+server/dist/
+
+# Environment Variables
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+*.env
+
+# Logs 
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# Docker
+.dockerignore
+ 
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDE / Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Testing
+coverage/
+.nyc_output/
+
+# Miscellaneous
+*.pem
+.cache/
+.temp/
+tmp/
+
+#docs
+docs/
