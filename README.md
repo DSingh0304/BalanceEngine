@@ -4,6 +4,7 @@ LedgerFlow is a balance engine that records money movement using double-entry bo
 
 **Architecture**
 
+![Architecture](./docs/Architecture.png)
 
 How it works
 
