@@ -1,11 +1,12 @@
 const { Pool } = require("pg");
+const { env } = require('./env');
 
 const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || "5432", 10),
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
+  host: env.db.DB_HOST,
+  port: parseInt(env.db.DB_PORT || "5432", 10),
+  database: env.db.DB_NAME,
+  user: env.db.DB_USER,
+  password: env.db.DB_PASSWORD,
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
