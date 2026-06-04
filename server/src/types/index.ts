@@ -7,7 +7,6 @@ export type AccountType =
 
 export type EntryType = "DEBIT" | "CREDIT";
 
-// Matches DB enum: transaction_status ('POSTED', 'REVERSED')
 export type TransactionStatus = "POSTED" | "REVERSED";
 
 export interface User {
@@ -43,7 +42,6 @@ export interface LedgerEntry {
   id: string;
   transaction_id: string;
   account_id: string;
-  // BIGINT in Postgres — use string in TypeScript to avoid precision loss when sending JSON
   amount: string;
   entry_type: EntryType;
   created_at: Date;
