@@ -4,7 +4,9 @@ import viteLogo from './assets/vite.svg'
 import heroImg from './assets/hero.png'
 import './App.css'
 
+// Main frontend component
 function App() {
+  // State for demo counter
   const [count, setCount] = useState(0)
 
   return (

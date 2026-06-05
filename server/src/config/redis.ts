@@ -3,6 +3,7 @@ const env = require('./env');
 
 const redisUrl = env.redisUrl || 'redis://localhost:6379';
 
+// Main and subscription Redis clients
 const redis = new Redis(redisUrl);
 const redisSub = new Redis(redisUrl);
 
@@ -24,6 +25,7 @@ redisSub.on('connect', () => {
   console.log('Redis (Sub) connected successfully');
 });
 
+// Verify Redis connectivity on startup
 const testRedis = async () => {
     try {
         await redis.set('test_key', 'Redis is working!');

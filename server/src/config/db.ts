@@ -1,6 +1,7 @@
 const { Pool } = require("pg");
 const env = require('./env');
 
+// Database connection pool setup
 const pool = new Pool({
   host: env.db.host,
   port: parseInt(String(env.db.port || "5432"), 10),
@@ -14,6 +15,7 @@ const pool = new Pool({
 
 module.exports = { pool };
 
+// Verify database connectivity on startup
 const testDatabaseConnection = async () => {
   try {
     const client = await pool.connect();

@@ -1,3 +1,4 @@
+// Type definitions for ledger accounts and entries
 export type AccountType =
   | "ASSET"
   | "LIABILITY"
@@ -59,6 +60,7 @@ export interface AuditLog {
   created_at: Date;
 }
 
+// Express Request type declaration override
 declare global {
     namespace Express {
         interface Request {
