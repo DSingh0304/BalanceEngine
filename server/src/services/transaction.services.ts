@@ -60,7 +60,7 @@ const postTransaction = async (
 
     // Insert the main transaction record
     const { rows: txRows } = await client.query(
-      `INSERT INTO transactions (idempotency_key, metadata, status, description) VALUES ($1, $2, 'POSTED', $3) RETURNING *`, 
+      `INSERT INTO transactions (idempotency_key, metadata, status, description) VALUES ($1, $2, 'POSTED', $3) RETURNING *`,
       [idempotencyKey, metadata, metadata.note || metadata.description || 'Transaction']
     );
 
@@ -94,9 +94,20 @@ const postTransaction = async (
   }
 };
 
+//reverse transaction function
+
+const reverseTransaction = async (
+  id: string,
+  idempotency_key: string,
+  ip_address?: string | null
+  ): Promise<Partial<Transaction>> => {
+    throw new Error("Not implemented");
+}
+
 //exporting all the functions
 
 module.exports = {
   validateEntries,
-  postTransaction
+  postTransaction,
+  reverseTransaction
 }
