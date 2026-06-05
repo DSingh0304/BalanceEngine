@@ -1,10 +1,10 @@
 import nodeHttp = require("node:http");
 
-const { pool } = require('pg');
+const { pool } = require('../config/db');
 const { redis } = require('../config/redis');
 
 const computeBalance = async (accountId: string) => {
-    const client = new pool.connect();
+    const client = await pool.connect();
     try {
         const { rows } = await client.query(
             `SELECT
@@ -14,8 +14,9 @@ const computeBalance = async (accountId: string) => {
             WHERE account_id = $1`, [accountId]
         );
 
-        const totalDebit = BigInt(rows.total_debit);
-        const totalCredit = BigInt(rows.total_credit);
+        const row = rows[0];
+        const totalDebit = BigInt(row ? row.total_debit : 0);
+        const totalCredit = BigInt(row ? row.total_credit : 0);
 
         return totalDebit - totalCredit;
     } finally {
@@ -32,9 +33,9 @@ const cacheBalance = async (accountId: string, balance: bigint) => {
 };
 
 const getBalance = async (accountId: string) => {
-    try{
-        const cachedBalance = redis.get(`account:${accountId}:balance`);
-        if(cacheBalance !== null){
+    try {
+        const cachedBalance = await redis.get(`account:${accountId}:balance`);
+        if (cachedBalance !== null) {
             return BigInt(cachedBalance);
         }
     } catch (err) {

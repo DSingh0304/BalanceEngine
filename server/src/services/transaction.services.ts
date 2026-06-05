@@ -1,5 +1,5 @@
-const pool = require('../config/db')
-const redis = require('../config/redis')
+const { pool } = require('../config/db')
+const { redis } = require('../config/redis')
 import type { Transaction, LedgerEntry } from "../types";
 
 // Validate entries balance and amounts
@@ -27,11 +27,11 @@ const validateEntries = (entries: Partial<LedgerEntry>[]) => {
         "Validation Error: Invalid entry type. Must be DEBIT or CREDIT.",
       );
     }
-    if (debitSum != creditSum) {
-      throw new Error(
-        `Validation Error: Entries do not balance. DEBITs: ${debitSum}, CREDITs: ${creditSum}`,
-      );
-    }
+  }
+  if (debitSum !== creditSum) {
+    throw new Error(
+      `Validation Error: Entries do not balance. DEBITs: ${debitSum}, CREDITs: ${creditSum}`,
+    );
   }
 };
 
@@ -45,7 +45,7 @@ const postTransaction = async (
   const accountIds = Array.from(new Set(entries.map((e) => e.account_id)));
 
   // Connect client and begin transaction
-  const client = new pool.connect();
+  const client = await pool.connect();
   try {
     await client.query("BEGIN");
     const placeholders = accountIds.map((_, i) => `$${i + 1}`).join(`, `);
@@ -60,10 +60,11 @@ const postTransaction = async (
 
     // Insert the main transaction record
     const { rows: txRows } = await client.query(
-      `INSERT INTO transactions (idempotency_key, metadata, status) VALUES ($1, $2, 'POSTED') RETURNING *`, [idempotencyKey, metadata]
+      `INSERT INTO transactions (idempotency_key, metadata, status, description) VALUES ($1, $2, 'POSTED', $3) RETURNING *`, 
+      [idempotencyKey, metadata, metadata.note || metadata.description || 'Transaction']
     );
 
-    const transaction: Transaction = txRows
+    const transaction: Transaction = txRows[0];
     const insertedEntries = [];
 
     // Insert each associated ledger entry
