@@ -1,5 +1,5 @@
-import { pool } from "../config/db";
-import { redis } from "../config/redis";
+const pool = require('../config/db')
+const redis = require('../config/redis')
 import type { Transaction, LedgerEntry } from "../types";
 
 // Validate entries balance and amounts
@@ -59,10 +59,11 @@ const postTransaction = async (
     }
 
     // Insert the main transaction record
-    const { rows: transaction } = await client.query(
+    const { rows: txRows } = await client.query(
       `INSERT INTO transactions (idempotency_key, metadata, status) VALUES ($1, $2, 'POSTED') RETURNING *`, [idempotencyKey, metadata]
     );
 
+    const transaction: Transaction = txRows
     const insertedEntries = [];
 
     // Insert each associated ledger entry
@@ -91,3 +92,10 @@ const postTransaction = async (
     client.release();
   }
 };
+
+//exporting all the functions
+
+module.exports = {
+  validateEntries,
+  postTransaction
+}
