@@ -77,6 +77,8 @@ CREATE INDEX idx_audit_log_entity ON audit_log(entity_type, entity_id);
 
 CREATE INDEX idx_accounts_user_id ON accounts(user_id);
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_reversal_of_unique ON transactions (reversal_of) WHERE reversal_of IS NOT NULL;
+
 CREATE OR REPLACE FUNCTION prevent_ledger_mutation()
 RETURNS TRIGGER AS $$ 
     BEGIN 
