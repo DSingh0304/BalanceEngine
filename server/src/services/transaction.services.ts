@@ -1,5 +1,6 @@
 const { pool } = require('../config/db')
 const { redis } = require('../config/redis')
+const { log } = require('../services/audit.services')
 import type { Transaction, LedgerEntry } from "../types";
 
 // Validate entries balance and amounts
@@ -94,17 +95,66 @@ const postTransaction = async (
   }
 };
 
-//reverse transaction function
+//Reverse transaction function
 
 const reverseTransaction = async (
   id: string,
   idempotency_key: string,
   ip_address?: string | null
-  ): Promise<Partial<Transaction>> => {
-    throw new Error("Not implemented");
-}
+  ) => {
+    const client = await pool.connect();
+    let originalTx: Transaction;
+    let originalEntries: LedgerEntry[];
+    try{
+      const txResult = await client.query('SELECT * FROM transactions WHERE id = $1', [id]);
+      originalTx = txResult.rows;
 
-//exporting all the functions
+      if(!originalTx){
+        throw new Error('Transaction not found');
+      }
+      if(originalTx.status == 'REVERSED') {
+        throw new Error('Transaction is already reversed.');
+      }
+      const entriesResult = await client.query('SELECT * FROM ledger_entries WHERE transaction_id = $1', [id]);
+      originalEntries = entriesResult.rows;
+    } finally {
+      client.release();
+    }
+
+    const reversalEntries: Partial<LedgerEntry>[] = originalEntries.map((entry) => ({
+      account_id: entry.account_id,
+      amount: String(entry.amount),
+      entry_type: entry.entry_type === 'DEBIT' ? 'CREDIT' : 'DEBIT'
+    }));
+
+    const reversalResult = await postTransaction(
+      idempotency_key,
+      { reversal_of: id, note: 'REVERSAL' },
+      reversalEntries
+    );
+
+
+    const updateClient = await pool.connet();
+    try{
+      await updateClient.query(
+        `UPDATE transactions SET status = 'REVERSED' WHERE id = $1`, [id]
+      );
+    } finally{
+      client.release();
+    }
+
+    await log({
+      entityType: 'transaction',
+      entityId: id,
+      action: 'REVERSAL',
+      oldData: originalTx,
+      newData: reversalResult.transaction,
+      ip_address: ip_address
+    });
+    return reversalResult;
+  };
+
+//Exporting all the functions
 
 module.exports = {
   validateEntries,
