@@ -11,17 +11,27 @@ const app = express();
 app.use(express.json());
 
 app.get('/health', async (_req: Request, res: Response) => {
-	try{
+  try {
+    // Ensure database is reachable
     await pool.query('SELECT 1');
-    await redis.ping();
+
+    // Check redis, but treat redis failure as non-fatal for health — include status
+    let redisOk = true;
+    try {
+      await redis.ping();
+    } catch (err) {
+      redisOk = false;
+      console.warn('Redis ping failed during health check:', err);
+    }
 
     res.status(200).json({
       status: 'ok',
       message: 'LedgerFlow API is healthy',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      redis: redisOk
     });
-  } catch (error){
-    console.error('Health check failed:', error);
+  } catch (error) {
+    console.error('Health check failed (DB):', error);
     res.status(503).json({
       status: 'error',
       message: 'Service Unavailable'
@@ -39,9 +49,14 @@ const startServer = async () => {
     client.release();
     console.log('PostgreSQL connection established.');
 
-    await redis.ping();
-    await redisSub.ping();
-    console.log('Redis clients (Main & Sub) established.');
+    // Redis is desirable but not required for startup. Attempt ping but continue on failure.
+    try {
+      await redis.ping();
+      await redisSub.ping();
+      console.log('Redis clients (Main & Sub) established.');
+    } catch (err) {
+      console.warn('Redis not available during startup — continuing without cache:', err);
+    }
     const PORT = env.port || 3000;
     app.listen(PORT, () => {
       console.log(`Server successfully running on port ${PORT}`);
