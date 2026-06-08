@@ -1,3 +1,11 @@
+// Load .env in development
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  require('dotenv').config();
+} catch (err) {
+  // ignore if dotenv is not available
+}
+
 // Required environment variables list
 const requiredVariables = [
   "PORT",
