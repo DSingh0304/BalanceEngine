@@ -1,13 +1,12 @@
-const Redis = require('ioredis');
-const env = require('./env');
+import Redis from 'ioredis';
+import env from './env.js';
 
 const redisUrl = env.redisUrl || 'redis://localhost:6379';
 
 // Main and subscription Redis clients
-const redis = new Redis(redisUrl);
-const redisSub = new Redis(redisUrl);
+export const redis = new Redis(redisUrl);
+export const redisSub = new Redis(redisUrl);
 
-module.exports = { redis, redisSub };
 
 redis.on('error', (err : Error) => {
     console.error('Redis (Main) connection error:', err);
@@ -26,7 +25,7 @@ redisSub.on('connect', () => {
 });
 
 // Verify Redis connectivity on startup
-const testRedis = async () => {
+async function testRedis() {
     try {
         await redis.set('test_key', 'Redis is working!');
         const value = await redis.get('test_key');
@@ -34,6 +33,6 @@ const testRedis = async () => {
     } catch (err) {
         console.error('Redis Test Failed:', err);
     }
-};
+}
 
 testRedis();

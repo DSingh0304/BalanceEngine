@@ -1,9 +1,8 @@
-import express = require("express");
-import console = require("node:console");
+import express from 'express';
 import type { Request, Response } from "express";
-const env = require("./config/env");
-const { pool } = require("./config/db");
-const { redis, redisSub } = require("./config/redis");
+import env from "./config/env.js";
+import { pool } from "./config/db.js";
+import { redis, redisSub } from "./config/redis.js";
 
 // Initialize express application
 const app = express();

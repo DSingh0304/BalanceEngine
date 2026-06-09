@@ -1,10 +1,10 @@
-const { pool } = require("../config/db");
-const { redis } = require("../config/redis");
-const { log } = require("../services/audit.services");
+import { pool } from "../config/db.js";
+import { redis } from "../config/redis.js";
+import { log } from "../services/audit.services.js";
 import type { Transaction, LedgerEntry } from "../types";
 
 // Validate entries balance and amounts
-const validateEntries = (entries: Partial<LedgerEntry>[]) => {
+const validateEntries = (entries: Partial<LedgerEntry>[]): void => {
   if (entries.length < 2) {
     throw new Error(
       "Validation Error: A transaction must have atleast 2 entries.",
@@ -37,7 +37,7 @@ const validateEntries = (entries: Partial<LedgerEntry>[]) => {
 };
 
 // Post transaction and ledger entries inside database transaction
-const postTransaction = async (
+export const postTransaction = async (
   idempotencyKey: string,
   metadata: Record<string, any>,
   entries: Partial<LedgerEntry>[],
@@ -102,7 +102,7 @@ const postTransaction = async (
 
 //Reverse transaction function
 
-const reverseTransaction = async (
+export const reverseTransaction = async (
   id: string,
   idempotency_key: string,
   ip_address?: string | null,
@@ -236,8 +236,3 @@ const reverseTransaction = async (
 
 //Exporting all the functions
 
-module.exports = {
-  validateEntries,
-  postTransaction,
-  reverseTransaction,
-};

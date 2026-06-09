@@ -1,7 +1,7 @@
 // Load .env in development
+import * as dotenvModule from 'dotenv';
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  require('dotenv').config();
+  dotenvModule.config();
 } catch (err) {
   // ignore if dotenv is not available
 }
@@ -35,7 +35,7 @@ if ((process.env.JWT_SECRET || "").length < 32) {
 }
 
 // Structured configuration object
-const env = {
+export const env = {
   port: parseInt(process.env.PORT!, 10),
   db: {
     host: process.env.DB_HOST!,
@@ -52,4 +52,4 @@ const env = {
   idempotencyTtlSeconds: parseInt(process.env.IDEMPOTENCY_TTL_SECONDS!, 10),
 };
 
-module.exports = env;
+export default env;

@@ -1,9 +1,7 @@
-import nodeHttp = require("node:http");
+import { pool } from '../config/db.js';
+import { redis } from '../config/redis.js';
 
-const { pool } = require('../config/db');
-const { redis } = require('../config/redis');
-
-const computeBalance = async (accountId: string) => {
+export const computeBalance = async (accountId: string) => {
     const client = await pool.connect();
     try {
         const { rows } = await client.query(
@@ -24,7 +22,7 @@ const computeBalance = async (accountId: string) => {
     }
 };
 
-const cacheBalance = async (accountId: string, balance: bigint) => {
+export const cacheBalance = async (accountId: string, balance: bigint) => {
     try {
         await redis.set(`account:${accountId}:balance`, balance.toString());
     } catch (err) {
@@ -32,7 +30,7 @@ const cacheBalance = async (accountId: string, balance: bigint) => {
     }
 };
 
-const getBalance = async (accountId: string) => {
+export const getBalance = async (accountId: string) => {
     try {
         const cachedBalance = await redis.get(`account:${accountId}:balance`);
         if (cachedBalance !== null) {
@@ -44,10 +42,4 @@ const getBalance = async (accountId: string) => {
 
     const computedBalance = await computeBalance(accountId);
     return computedBalance;
-};
-
-module.exports = {
-    computeBalance,
-    cacheBalance,
-    getBalance
 };

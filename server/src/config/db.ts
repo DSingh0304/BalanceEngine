@@ -1,8 +1,8 @@
-const { Pool } = require("pg");
-const env = require('./env');
+import { Pool } from 'pg';
+import env from './env.js';
 
 // Database connection pool setup
-const pool = new Pool({
+export const pool = new Pool({
   host: env.db.host,
   port: parseInt(String(env.db.port || "5432"), 10),
   database: env.db.name,
@@ -13,10 +13,9 @@ const pool = new Pool({
   connectionTimeoutMillis: 2000,
 });
 
-module.exports = { pool };
 
 // Verify database connectivity on startup
-const testDatabaseConnection = async () => {
+async function testDatabaseConnection() {
   try {
     const client = await pool.connect();
     try {
@@ -29,6 +28,6 @@ const testDatabaseConnection = async () => {
     console.error("FATAL: PostgreSQL connection failed on startup:", err);
     process.exit(1);
   }
-};
+}
 
 testDatabaseConnection();

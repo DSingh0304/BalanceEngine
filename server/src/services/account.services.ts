@@ -1,7 +1,7 @@
-const { pool } = require('../config/db');
-import type { LedgerEntry } from '../types/index.ts';
+import { pool } from '../config/db.js';
+import type { LedgerEntry } from '../types/index.js';
 
-const getLedgerEntries = async (
+export const getLedgerEntries = async (
     accountId: string,
     cursor?: { createdAt: Date, id: string },
     limit: number = 50
@@ -45,4 +45,3 @@ const getLedgerEntries = async (
     }finally{
         client.release();
     }
-}

@@ -1,7 +1,7 @@
-const { pool } = require('../config/db');
-import type { AuditLog } from '../types/index'
+import { pool } from '../config/db.js';
+import type { AuditLog } from '../types/index.js'
 
-const log = async ({ 
+export const log = async ({
     entity_type, 
     entity_id, 
     action, 
@@ -29,8 +29,3 @@ const log = async ({
     } catch(err) {
         console.error('Audit log failure (logged but not thrown):', err);
     }
-};
-
-module.exports = {
-    log
-}
