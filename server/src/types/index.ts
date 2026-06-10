@@ -43,7 +43,7 @@ export interface LedgerEntry {
   id: string;
   transaction_id: string;
   account_id: string;
-  amount: string;
+  amount: string | bigint;
   entry_type: EntryType;
   created_at: Date;
 }

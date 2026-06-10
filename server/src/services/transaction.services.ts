@@ -172,12 +172,12 @@ export const reverseTransaction = async (
       await client.query("COMMIT");
       try {
         await log({
-          entityType: "transaction",
-          entityId: id,
+          entity_type: "transaction",
+          entity_id: id,
           action: "REVERSAL_ALREADY_EXISTS",
-          oldData: originalTx,
-          newData: existingTx,
-          ip_address: ip_address,
+          old_data: originalTx as unknown as Record<string, unknown>,
+          new_data: existingTx as unknown as Record<string, unknown>,
+          ip_address: ip_address ?? null,
         });
       } catch (err) {
         console.error("Audit log failure after detecting existing reversal:", err);
@@ -212,12 +212,12 @@ export const reverseTransaction = async (
 
     try {
       await log({
-        entityType: "transaction",
-        entityId: id,
+        entity_type: "transaction",
+        entity_id: id,
         action: "REVERSAL",
-        oldData: originalTx,
-        newData: newTransaction,
-        ip_address: ip_address,
+        old_data: originalTx as unknown as Record<string, unknown>,
+        new_data: newTransaction as unknown as Record<string, unknown>,
+        ip_address: ip_address ?? null,
       });
     } catch (err) {
       console.error(" Audit log failure after reversal commit:", err);

@@ -22,7 +22,7 @@ export const getLedgerEntries = async (
             queryParams = [accountId, cursor.createdAt, cursor.id, limit]
         } else {
             queryText = `
-                SELECT * FROM ledger_entires
+                SELECT * FROM ledger_entries
                 WHERE account_id = $1
                 ORDER BY created_at DESC, id DESC
                 LIMIT $2
@@ -30,7 +30,7 @@ export const getLedgerEntries = async (
             queryParams = [accountId, limit]
         }
         const { rows } = await client.query(queryText, queryParams);
-        const entries: LedgerEntry[] = rows.map((row: { amount: string | number | bigint | boolean; }) => ({
+        const entries: LedgerEntry[] = rows.map((row: any) => ({
             ...row,
             amount: BigInt(row.amount)
         }));
@@ -45,3 +45,4 @@ export const getLedgerEntries = async (
     }finally{
         client.release();
     }
+};

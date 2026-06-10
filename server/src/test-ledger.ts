@@ -1,7 +1,8 @@
 import crypto from 'crypto';
 import { pool } from './config/db.js';
-import { postTransaction } from './services/transaction.services.js'
-import { getBalance } from './services/balance.services.js'
+import { postTransaction } from './services/transaction.services.js';
+import { getBalance } from './services/balance.services.js';
+import { redis, redisSub } from './config/redis.js';
 
 const runTest = async () => {
     console.log('Starting Ledger Engine Tests...\n');
@@ -24,9 +25,9 @@ const runTest = async () => {
                 { account_id: accountA, amount: 1000n, entry_type: 'DEBIT' },
                 { account_id: accountB, amount: 2000n, entry_type: 'CREDIT' }
             ]);
-            console.log('TEST 2 PASSED: Valid transaction posted successfully.');
-        } catch (err) {
-            console.error('TEST 2 FAILED:', err.message);
+            console.error('TEST 1 FAILED: Unbalanced transaction was allowed!');
+        } catch (err: any) {
+            console.log('TEST 1 PASSED: Unbalanced transaction correctly rejected:', err.message);
         }
         // TEST 2: Valid Transaction (Should Succeed)
         try {
@@ -35,7 +36,7 @@ const runTest = async () => {
                 { account_id: accountB, amount: 1000n, entry_type: 'CREDIT' }
             ]);
             console.log('TEST 2 PASSED: Valid transaction posted successfully.');
-        } catch (err) {
+        } catch (err: any) {
             console.error('TEST 2 FAILED:', err.message);
         }
 
@@ -65,9 +66,8 @@ const runTest = async () => {
         // Close the database pool so the Node process can exit gracefully
         await pool.end();
         // Close the Redis connections to allow exit
-        const { redis, redisSub } = require('./config/redis');
-        redis.quit();
-        redisSub.quit();
+        await redis.quit();
+        await redisSub.quit();
         console.log('\nTests completed.');
     }
 };

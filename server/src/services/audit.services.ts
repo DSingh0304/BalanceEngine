@@ -10,7 +10,7 @@ export const log = async ({
     ip_address
 } : Partial<AuditLog>) => {
     try {
-        const client = new pool.connect();
+        const client = await pool.connect();
         try {
             await client.query(
                 `INSERT INTO audit_log (entity_type, entity_id, action, old_data, new_data, ip_address) 
@@ -29,3 +29,4 @@ export const log = async ({
     } catch(err) {
         console.error('Audit log failure (logged but not thrown):', err);
     }
+};
