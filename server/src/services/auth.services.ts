@@ -4,7 +4,7 @@ import { log } from './audit.services.js';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 
-export const registerUser = async (name: string, email: string, password: string) => {
+export const registerUser = async (name: string, email: string, password: string, ipAddress: string) => {
     const client = await pool.connect();
     try {
         const emailCheck = await client.query('SELECT id FROM users WHERE email = $1', [email]);
@@ -31,7 +31,7 @@ export const registerUser = async (name: string, email: string, password: string
             entity_id: user.id,
             action: 'USER_REGISTERED',
             new_data: { email: user.email, name: user.name },
-            ip_address: '127.0.0.1'
+            ip_address: ipAddress || '127.0.0.1'
         });
 
         return { user, token };
@@ -41,7 +41,7 @@ export const registerUser = async (name: string, email: string, password: string
     }
 };
 
-export const loginUser = async (email: string, password: string) => {
+export const loginUser = async (email: string, password: string, ipAddress: string | undefined) => {
     const client = await pool.connect();
     try {
         const result = await client.query('SELECT id, email, name, password FROM users WHERE email = $1', [email]);
@@ -69,7 +69,7 @@ export const loginUser = async (email: string, password: string) => {
             entity_id: user.id,
             action: 'USER_LOGGED_IN',
             new_data: { email: user.email },
-            ip_address: '127.0.0.1'
+            ip_address: ipAddress || '127.0.0.1'
         });
 
         delete user.password;
