@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction, response } from "express";
-import { redis } from "../config/redis";
-import env from "../config/env";
+import { redis } from "../config/redis.js";
+import env from "../config/env.js";
 
 const IDEMPOTENCY_TTL = env.idempotencyTtlSeconds || 86400;
 
