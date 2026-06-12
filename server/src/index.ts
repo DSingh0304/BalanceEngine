@@ -3,11 +3,15 @@ import type { Request, Response } from "express";
 import env from "./config/env.js";
 import { pool } from "./config/db.js";
 import { redis, redisSub } from "./config/redis.js";
+import authRoutes from "./routes/auth.routes.js";
 
 // Initialize express application
 const app = express();
 
 app.use(express.json());
+
+// Auth routes
+app.use('/api/auth', authRoutes);
 
 app.get('/health', async (_req: Request, res: Response) => {
   try {
