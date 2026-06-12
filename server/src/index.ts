@@ -4,6 +4,8 @@ import env from "./config/env.js";
 import { pool } from "./config/db.js";
 import { redis, redisSub } from "./config/redis.js";
 import authRoutes from "./routes/auth.routes.js";
+import { idempotency } from './middleware/idempotency.js';
+import { timeStamp } from 'node:console';
 
 // Initialize express application
 const app = express();
@@ -12,6 +14,14 @@ app.use(express.json());
 
 // Auth routes
 app.use('/api/auth', authRoutes);
+
+// Test Idempotency
+app.post('/test-idempotency', idempotency, (req, res) => {
+  res.status(201).json({
+    message: 'Created',
+    timeStamp: Date.now()
+  })
+})
 
 app.get('/health', async (_req: Request, res: Response) => {
   try {
