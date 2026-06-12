@@ -1,7 +1,7 @@
 import { pool } from "../config/db.js";
 import { redis } from "../config/redis.js";
 import { log } from "../services/audit.services.js";
-import type { Transaction, LedgerEntry } from "../types";
+import type { Transaction, LedgerEntry } from "../types/index.js";
 
 // Validate entries balance and amounts
 const validateEntries = (entries: Partial<LedgerEntry>[]): void => {
