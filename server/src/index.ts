@@ -15,13 +15,13 @@ app.use(express.json());
 // Auth routes
 app.use('/api/auth', authRoutes);
 
-// Test Idempotency
-app.post('/test-idempotency', idempotency, (req, res) => {
-  res.status(201).json({
-    message: 'Created',
-    timeStamp: Date.now()
-  })
-})
+// // Test Idempotency
+// app.post('/test-idempotency', idempotency, (req, res) => {
+//   res.status(201).json({
+//     message: 'Created',
+//     timeStamp: Date.now()
+//   })
+// })
 
 app.get('/health', async (_req: Request, res: Response) => {
   try {
