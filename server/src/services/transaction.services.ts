@@ -1,5 +1,6 @@
 import { pool } from "../config/db.js";
 import { redis } from "../config/redis.js";
+import { computeBalance } from "./balance.services.js";
 import { log } from "../services/audit.services.js";
 import type { Transaction, LedgerEntry } from "../types/index.js";
 
@@ -41,16 +42,20 @@ export const postTransaction = async (
   idempotencyKey: string,
   metadata: Record<string, any>,
   entries: Partial<LedgerEntry>[],
+  createdBy?: string,
 ) => {
   validateEntries(entries);
-  const accountIds = Array.from(new Set(entries.map((e) => e.account_id)));
+  const accountIds = Array.from(new Set(entries.map((e) => e.account_id))).sort() as string[];
 
   // Connect client and begin transaction
   const client = await pool.connect();
+  let transaction: Transaction;
+  let insertedEntries: any[];
+
   try {
     await client.query("BEGIN");
     const placeholders = accountIds.map((_, i) => `$${i + 1}`).join(`, `);
-    // Lock accounts to prevent concurrent modifications
+    // Lock accounts in sorted order to prevent deadlocks
     const { rows: lockedAccounts } = await client.query(
       `SELECT id FROM accounts WHERE id IN (${placeholders}) ORDER BY id FOR UPDATE`,
       accountIds,
@@ -61,55 +66,75 @@ export const postTransaction = async (
 
     // Insert the main transaction record
     const { rows: txRows } = await client.query(
-      `INSERT INTO transactions (idempotency_key, metadata, status, description) VALUES ($1, $2, 'POSTED', $3) RETURNING *`,
+      `INSERT INTO transactions (idempotency_key, metadata, status, description, created_by)
+       VALUES ($1, $2, 'POSTED', $3, $4) RETURNING *`,
       [
         idempotencyKey,
         metadata,
         metadata.note || metadata.description || "Transaction",
+        createdBy ?? null,
       ],
     );
 
-    const transaction: Transaction = txRows[0];
-    const insertedEntries = [];
+    transaction = txRows[0];
+    insertedEntries = [];
 
     // Insert each associated ledger entry
     for (const entry of entries) {
       const { rows: entryRows } = await client.query(
-        `INSERT INTO ledger_entries (transaction_id, account_id, amount, entry_type) VALUES ($1, $2, $3, $4) RETURNING *`,
+        `INSERT INTO ledger_entries (transaction_id, account_id, amount, entry_type)
+         VALUES ($1, $2, $3, $4) RETURNING *`,
         [transaction.id, entry.account_id, entry.amount, entry.entry_type],
       );
-      // push single inserted row instead of the rows array
       insertedEntries.push(entryRows[0]);
     }
-    // Commit transaction and log success
+
+    // Commit - money is now safely recorded
     await client.query("COMMIT");
-
-    try {
-      console.log(`Transaction committed successfully. Redis actions pending.`);
-    } catch (redisErr) {
-      console.error("Redis error after commit:", redisErr);
-    }
-
-    return { transaction, entries: insertedEntries };
   } catch (err) {
-    // Rollback on any failure
     await client.query("ROLLBACK");
     throw err;
   } finally {
     client.release();
   }
+
+  // Post-commit: update Redis balance cache + publish Pub/Sub events
+
+  try {
+    for (const accountId of accountIds) {
+      const newBalance = await computeBalance(accountId);
+      await redis.set(`account:${accountId}:balance`, newBalance.toString());
+
+      await redis.publish(
+        "balance_updates",
+        JSON.stringify({
+          accountId,
+          balance: newBalance.toString(),
+          transactionId: transaction!.id,
+          timestamp: new Date().toISOString(),
+        }),
+      );
+    }
+    console.log(`[postTransaction] Redis updated and balance_updates published for tx ${transaction!.id}`);
+  } catch (redisErr) {
+    console.error("[postTransaction] Redis post-commit error (non-fatal):", redisErr);
+  }
+
+  return { transaction: transaction!, entries: insertedEntries };
 };
 
-//Reverse transaction function
-
+// Reverse transaction function
 export const reverseTransaction = async (
   id: string,
   idempotency_key: string,
   ip_address?: string | null,
+  createdBy?: string,
+  reason?: string,
 ) => {
   const client = await pool.connect();
   let originalTx: Transaction;
   let originalEntries: LedgerEntry[];
+
   try {
     await client.query("BEGIN");
     // Lock the transaction row to prevent concurrent reversals
@@ -139,7 +164,6 @@ export const reverseTransaction = async (
         entry_type: string;
       }) => ({
         account_id: entry.account_id,
-        // keep amounts as strings so validateEntries can call BigInt safely
         amount: String(entry.amount),
         entry_type: entry.entry_type === "DEBIT" ? "CREDIT" : "DEBIT",
       }),
@@ -149,7 +173,7 @@ export const reverseTransaction = async (
 
     const accountIds = Array.from(
       new Set(reversalEntries.map((e) => e.account_id)),
-    ).sort();
+    ).sort() as string[];
 
     const placeholders = accountIds.map((_, i) => `$${i + 1}`).join(", ");
     await client.query(
@@ -157,7 +181,7 @@ export const reverseTransaction = async (
       accountIds,
     );
 
-    // Prevent duplicate reversals: check if a reversal already exists for this transaction
+    // Prevent duplicate reversals
     const { rows: existingReversals } = await client.query(
       `SELECT * FROM transactions WHERE reversal_of = $1`,
       [id],
@@ -168,7 +192,6 @@ export const reverseTransaction = async (
         `SELECT * FROM ledger_entries WHERE transaction_id = $1`,
         [existingTx.id],
       );
-      // commit read-only outcome and return existing reversal
       await client.query("COMMIT");
       try {
         await log({
@@ -185,10 +208,11 @@ export const reverseTransaction = async (
       return { transaction: existingTx, entries: existingEntries };
     }
 
+    const reversalMeta = { note: reason ?? "Reversal", reason, reversed_transaction_id: id };
     const { rows: newTxRows } = await client.query(
-      `INSERT INTO transactions (idempotency_key, metadata, reversal_of, status)
-       VALUES ($1, $2, $3, 'POSTED') RETURNING *`,
-      [idempotency_key, { note: "Reversal" }, id],
+      `INSERT INTO transactions (idempotency_key, metadata, reversal_of, status, description, created_by)
+       VALUES ($1, $2, $3, 'POSTED', $4, $5) RETURNING *`,
+      [idempotency_key, reversalMeta, id, `Reversal: ${reason ?? ""}`, createdBy ?? null],
     );
     const newTransaction: Transaction = newTxRows[0];
 
@@ -199,16 +223,34 @@ export const reverseTransaction = async (
          VALUES ($1, $2, $3, $4) RETURNING *`,
         [newTransaction.id, entry.account_id, entry.amount, entry.entry_type],
       );
-      // push single inserted row instead of an array
       insertedEntries.push(entryRows[0]);
     }
 
     await client.query(
-      `UPDATE transactions SET status = 'REVERSED' WHERE id = $1`,
+      `UPDATE transactions SET status = 'REVERSED', reversed_at = NOW() WHERE id = $1`,
       [id],
     );
 
     await client.query("COMMIT");
+
+    // Post-commit: update Redis balance cache + publish events
+    try {
+      for (const accountId of accountIds) {
+        const newBalance = await computeBalance(accountId);
+        await redis.set(`account:${accountId}:balance`, newBalance.toString());
+        await redis.publish(
+          "balance_updates",
+          JSON.stringify({
+            accountId,
+            balance: newBalance.toString(),
+            transactionId: newTransaction.id,
+            timestamp: new Date().toISOString(),
+          }),
+        );
+      }
+    } catch (redisErr) {
+      console.error("[reverseTransaction] Redis post-commit error (non-fatal):", redisErr);
+    }
 
     try {
       await log({
@@ -220,19 +262,14 @@ export const reverseTransaction = async (
         ip_address: ip_address ?? null,
       });
     } catch (err) {
-      console.error(" Audit log failure after reversal commit:", err);
+      console.error("Audit log failure after reversal commit:", err);
     }
 
     return { transaction: newTransaction, entries: insertedEntries };
   } catch (err) {
-    
     await client.query("ROLLBACK");
     throw err;
   } finally {
-
     client.release();
   }
 };
-
-//Exporting all the functions
-
