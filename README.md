@@ -1,4 +1,4 @@
-# LedgerFlow (BalanceEngine)
+# BalanceEngine
 
 LedgerFlow is a production-grade double-entry ledger and payment engine. It records money movements using immutable ledger entries, guarantees correctness with ACID transactions, uses idempotency to prevent duplicate processing, and provides real-time balance updates to clients.
 
