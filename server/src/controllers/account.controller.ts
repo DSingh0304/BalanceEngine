@@ -3,6 +3,7 @@ import { pool } from '../config/db.js';
 import { getBalance } from '../services/balance.services.js';
 import { log } from '../services/audit.services.js';
 import { createAccountSchema } from '../validators/index.js';
+import { redis } from '../config/redis.js';
 
 // POST /api/accounts
 export const createAccount = async (req: Request, res: Response, next: NextFunction) => {
@@ -210,6 +211,61 @@ export const getAccountAudit = async (req: Request, res: Response, next: NextFun
     );
 
     res.status(200).json({ events: rows });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// DELETE /api/accounts/:accountId
+export const deleteAccount = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { accountId } = req.params;
+    const userId = req.user!.id;
+    const ipAddress = req.ip || '127.0.0.1';
+
+    // 1. Fetch account and verify ownership
+    const { rows: accountRows } = await pool.query(
+      `SELECT id, name, type FROM accounts WHERE id = $1 AND user_id = $2`,
+      [accountId, userId],
+    );
+
+    if (accountRows.length === 0) {
+      res.status(404).json({ error: 'Account not found' });
+      return;
+    }
+
+    const account = accountRows[0];
+
+    // 2. Prevent deletion if account has transaction history
+    const { rows: entryCountRows } = await pool.query(
+      `SELECT COUNT(*) as count FROM ledger_entries WHERE account_id = $1`,
+      [accountId],
+    );
+
+    if (parseInt(entryCountRows[0].count, 10) > 0) {
+      res.status(400).json({ error: 'Cannot delete account with transaction history' });
+      return;
+    }
+
+    // 3. Delete from DB
+    await pool.query(
+      `DELETE FROM accounts WHERE id = $1`,
+      [accountId],
+    );
+
+    // 4. Clean up Redis balance cache
+    await redis.del(`account:${accountId}:balance`);
+
+    // 5. Log deletion to audit log
+    await log({
+      entity_type: 'account',
+      entity_id: accountId as string,
+      action: 'ACCOUNT_DELETED',
+      old_data: { name: account.name, type: account.type, user_id: userId } as any,
+      ip_address: ipAddress,
+    });
+
+    res.status(200).json({ message: 'Account deleted successfully' });
   } catch (err) {
     next(err);
   }

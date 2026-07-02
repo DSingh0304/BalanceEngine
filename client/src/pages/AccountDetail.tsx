@@ -44,10 +44,12 @@ type EntryRow = { accountId: string; type: 'DEBIT' | 'CREDIT'; amount: string };
 
 function PostTransactionModal({
   defaultAccountId,
+  accounts,
   onClose,
   onPosted,
 }: {
   defaultAccountId: string;
+  accounts: Account[];
   onClose: () => void;
   onPosted: () => void;
 }) {
@@ -94,7 +96,7 @@ function PostTransactionModal({
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal-card" style={{ maxWidth: 560 }}>
+      <div className="modal-card" style={{ maxWidth: 580 }}>
         <div className="modal-header">
           <h2 className="modal-title">Post Transaction</h2>
           <button className="modal-close btn btn-icon" onClick={onClose}>✕</button>
@@ -111,34 +113,73 @@ function PostTransactionModal({
             <button type="button" className="btn btn-secondary btn-sm" onClick={addEntry}>+ Add entry</button>
           </div>
 
-          {entries.map((entry, i) => (
-            <div key={i} className="grid-2" style={{ gap: 8, marginBottom: 10, alignItems: 'end' }}>
-              <div>
-                <label className="form-label">Account ID</label>
-                <input className="form-input" value={entry.accountId} onChange={e => updateEntry(i, 'accountId', e.target.value)} placeholder="UUID" required />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'end' }}>
+          {entries.map((entry, i) => {
+            const isKnownAccount = accounts.some(a => a.id === entry.accountId);
+            return (
+              <div key={i} className="grid-2" style={{ gap: 8, marginBottom: 16, alignItems: 'start' }}>
                 <div>
-                  <label className="form-label">Type</label>
+                  <label className="form-label">Account</label>
                   <select
                     className="form-input form-select"
-                    value={entry.type}
-                    onChange={e => updateEntry(i, 'type', e.target.value as 'DEBIT' | 'CREDIT')}
+                    value={isKnownAccount ? entry.accountId : (entry.accountId === '' ? '' : 'custom')}
+                    onChange={e => {
+                      const val = e.target.value;
+                      if (val === 'custom') {
+                        updateEntry(i, 'accountId', '');
+                      } else {
+                        updateEntry(i, 'accountId', val);
+                      }
+                    }}
+                    required
                   >
-                    <option value="DEBIT">DEBIT</option>
-                    <option value="CREDIT">CREDIT</option>
+                    <option value="" disabled>Select account...</option>
+                    {accounts.map(acc => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.name} ({acc.type})
+                      </option>
+                    ))}
+                    <option value="custom">Custom ID / UUID...</option>
                   </select>
+
+                  {(!isKnownAccount || entry.accountId === '') && (
+                    <input
+                      className="form-input mt-2"
+                      value={entry.accountId}
+                      onChange={e => updateEntry(i, 'accountId', e.target.value)}
+                      placeholder="Paste target Account UUID"
+                      required
+                    />
+                  )}
+
+                  {entry.accountId && (
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                      ID: {entry.accountId}
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <label className="form-label">Amount (₹)</label>
-                  <input className="form-input" type="number" min="0.01" step="0.01" value={entry.amount} onChange={e => updateEntry(i, 'amount', e.target.value)} placeholder="0.00" required />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'start' }}>
+                  <div>
+                    <label className="form-label">Type</label>
+                    <select
+                      className="form-input form-select"
+                      value={entry.type}
+                      onChange={e => updateEntry(i, 'type', e.target.value as 'DEBIT' | 'CREDIT')}
+                    >
+                      <option value="DEBIT">DEBIT</option>
+                      <option value="CREDIT">CREDIT</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="form-label">Amount (₹)</label>
+                    <input className="form-input" type="number" min="0.01" step="0.01" value={entry.amount} onChange={e => updateEntry(i, 'amount', e.target.value)} placeholder="0.00" required />
+                  </div>
+                  {entries.length > 2 && (
+                    <button type="button" className="btn btn-danger btn-icon" onClick={() => removeEntry(i)} style={{ alignSelf: 'end', height: 42, marginBottom: 0 }}>✕</button>
+                  )}
                 </div>
-                {entries.length > 2 && (
-                  <button type="button" className="btn btn-danger btn-icon" onClick={() => removeEntry(i)} style={{ marginBottom: 0 }}>✕</button>
-                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           <div className="flex-row flex-end mt-6">
             <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
@@ -236,11 +277,12 @@ function AnimatedBalance({ paise }: { paise: string }) {
 //  AccountDetail ─
 interface Props {
   account: Account;
+  accounts: Account[];
   onBalanceUpdate: (accountId: string, balance: string) => void;
   onRefreshAccounts: () => void;
 }
 
-export default function AccountDetail({ account, onBalanceUpdate, onRefreshAccounts }: Props) {
+export default function AccountDetail({ account, accounts, onBalanceUpdate, onRefreshAccounts }: Props) {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -249,7 +291,23 @@ export default function AccountDetail({ account, onBalanceUpdate, onRefreshAccou
   const [activeTab, setActiveTab] = useState<'ledger' | 'audit'>('ledger');
   const [showPostModal, setShowPostModal] = useState(false);
   const [reverseTargetId, setReverseTargetId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
+  const handleDeleteAccount = async () => {
+    if (!window.confirm(`Are you sure you want to delete the account "${account.name}"? This action cannot be undone.`)) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      await api.delete(`/api/accounts/${account.id}`);
+      onRefreshAccounts();
+    } catch (err: unknown) {
+      const msg = getErrorMsg(err, 'Failed to delete account');
+      alert(msg);
+    } finally {
+      setDeleting(false);
+    }
+  };
   // wsBalance holds the latest balance pushed by WebSocket, or null until first WS event
   const [wsBalance, setWsBalance] = useState<string | null>(null);
   // liveBalance = WS value if available, otherwise the prop (refreshed by parent fetches)
@@ -337,13 +395,25 @@ export default function AccountDetail({ account, onBalanceUpdate, onRefreshAccou
           <h1>{account.name}</h1>
           <p className="page-subtitle">{account.currency} · {account.type}</p>
         </div>
-        <button
-          id="post-transaction-btn"
-          className="btn btn-primary"
-          onClick={() => setShowPostModal(true)}
-        >
-          + Post Transaction
-        </button>
+        <div className="flex-row" style={{ gap: 10 }}>
+          {!account.is_system && (
+            <button
+              className="btn btn-danger"
+              onClick={handleDeleteAccount}
+              disabled={deleting}
+              style={{ padding: '8px 16px', fontSize: 13 }}
+            >
+              {deleting ? 'Deleting…' : 'Delete Account'}
+            </button>
+          )}
+          <button
+            id="post-transaction-btn"
+            className="btn btn-primary"
+            onClick={() => setShowPostModal(true)}
+          >
+            + Post Transaction
+          </button>
+        </div>
       </div>
 
       <div className="page-body">
@@ -571,6 +641,7 @@ export default function AccountDetail({ account, onBalanceUpdate, onRefreshAccou
       {showPostModal && (
         <PostTransactionModal
           defaultAccountId={account.id}
+          accounts={accounts}
           onClose={() => setShowPostModal(false)}
           onPosted={handlePosted}
         />

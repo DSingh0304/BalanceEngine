@@ -8,6 +8,7 @@ import {
   getAccountById,
   getAccountEntries,
   getAccountAudit,
+  deleteAccount,
 } from '../controllers/account.controller.js';
 import { getAccountBalance } from '../controllers/balance.controller.js';
 
@@ -19,6 +20,7 @@ router.use(authMiddleware);
 router.post('/', validate(createAccountSchema), createAccount);
 router.get('/', getAccounts);
 router.get('/:accountId', getAccountById);
+router.delete('/:accountId', deleteAccount);
 router.get('/:accountId/entries', getAccountEntries);
 router.get('/:accountId/balance', getAccountBalance);
 router.get('/:accountId/audit', getAccountAudit);

@@ -107,10 +107,15 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const { data } = await api.get('/api/accounts');
-      setAccounts(data.accounts as Account[]);
+
+      const fetchedAccounts = data.accounts as Account[];
+      setAccounts(fetchedAccounts);
       setSelectedAccountId(prev => {
-        if (!prev && (data.accounts as Account[]).length > 0) {
-          return (data.accounts as Account[])[0].id;
+        if (!prev && fetchedAccounts.length > 0) {
+          return fetchedAccounts[0].id;
+        }
+        if (prev && !fetchedAccounts.some(a => a.id === prev)) {
+          return fetchedAccounts.length > 0 ? fetchedAccounts[0].id : null;
         }
         return prev;
       });
@@ -207,6 +212,7 @@ export default function Dashboard() {
         {selectedAccount ? (
           <AccountDetail
             account={selectedAccount}
+            accounts={accounts}
             onBalanceUpdate={handleBalanceUpdate}
             onRefreshAccounts={fetchAccounts}
           />
