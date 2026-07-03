@@ -1,10 +1,10 @@
 import { pool } from "../config/db.js";
 import { redis } from "../config/redis.js";
+import { acquireAccountLocks, releaseAccountLocks, acquireLock, releaseLock } from "../utils/redisLock.js";
 import { computeBalance } from "./balance.services.js";
 import { log } from "../services/audit.services.js";
 import type { Transaction, LedgerEntry } from "../types/index.js";
 
-// Validate entries balance and amounts
 const validateEntries = (entries: Partial<LedgerEntry>[]): void => {
   if (entries.length < 2) {
     throw new Error(
@@ -37,7 +37,6 @@ const validateEntries = (entries: Partial<LedgerEntry>[]): void => {
   }
 };
 
-// Post transaction and ledger entries inside database transaction
 export const postTransaction = async (
   idempotencyKey: string,
   metadata: Record<string, any>,
@@ -47,7 +46,8 @@ export const postTransaction = async (
   validateEntries(entries);
   const accountIds = Array.from(new Set(entries.map((e) => e.account_id))).sort() as string[];
 
-  // Connect client and begin transaction
+  const lockKeys = await acquireAccountLocks(accountIds);
+
   const client = await pool.connect();
   let transaction: Transaction;
   let insertedEntries: any[];
@@ -55,7 +55,6 @@ export const postTransaction = async (
   try {
     await client.query("BEGIN");
     const placeholders = accountIds.map((_, i) => `$${i + 1}`).join(`, `);
-    // Lock accounts in sorted order to prevent deadlocks
     const { rows: lockedAccounts } = await client.query(
       `SELECT id FROM accounts WHERE id IN (${placeholders}) ORDER BY id FOR UPDATE`,
       accountIds,
@@ -64,7 +63,6 @@ export const postTransaction = async (
       throw new Error("Transaction Failed: One or more accounts do not exist.");
     }
 
-    // Insert the main transaction record
     const { rows: txRows } = await client.query(
       `INSERT INTO transactions (idempotency_key, metadata, status, description, created_by)
        VALUES ($1, $2, 'POSTED', $3, $4) RETURNING *`,
@@ -79,7 +77,6 @@ export const postTransaction = async (
     transaction = txRows[0];
     insertedEntries = [];
 
-    // Insert each associated ledger entry
     for (const entry of entries) {
       const { rows: entryRows } = await client.query(
         `INSERT INTO ledger_entries (transaction_id, account_id, amount, entry_type)
@@ -89,16 +86,14 @@ export const postTransaction = async (
       insertedEntries.push(entryRows[0]);
     }
 
-    // Commit - money is now safely recorded
     await client.query("COMMIT");
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;
   } finally {
     client.release();
+    await releaseAccountLocks(lockKeys);
   }
-
-  // Post-commit: update Redis balance cache + publish Pub/Sub events
 
   try {
     for (const accountId of accountIds) {
@@ -123,7 +118,6 @@ export const postTransaction = async (
   return { transaction: transaction!, entries: insertedEntries };
 };
 
-// Reverse transaction function
 export const reverseTransaction = async (
   id: string,
   idempotency_key: string,
@@ -131,13 +125,18 @@ export const reverseTransaction = async (
   createdBy?: string,
   reason?: string,
 ) => {
+  const reversalLockKey = `lock:reversal:${id}`;
+  const lockAcquired = await acquireLock(reversalLockKey);
+  if (!lockAcquired) {
+    throw new Error("Concurrency conflict: reversal already in progress for this transaction. Please retry.");
+  }
+
   const client = await pool.connect();
   let originalTx: Transaction;
   let originalEntries: LedgerEntry[];
 
   try {
     await client.query("BEGIN");
-    // Lock the transaction row to prevent concurrent reversals
     const { rows: txRows } = await client.query(
       "SELECT * FROM transactions WHERE id = $1 FOR UPDATE",
       [id],
@@ -181,7 +180,6 @@ export const reverseTransaction = async (
       accountIds,
     );
 
-    // Prevent duplicate reversals
     const { rows: existingReversals } = await client.query(
       `SELECT * FROM transactions WHERE reversal_of = $1`,
       [id],
@@ -233,7 +231,6 @@ export const reverseTransaction = async (
 
     await client.query("COMMIT");
 
-    // Post-commit: update Redis balance cache + publish events
     try {
       for (const accountId of accountIds) {
         const newBalance = await computeBalance(accountId);
@@ -271,5 +268,6 @@ export const reverseTransaction = async (
     throw err;
   } finally {
     client.release();
+    await releaseLock(reversalLockKey);
   }
 };
