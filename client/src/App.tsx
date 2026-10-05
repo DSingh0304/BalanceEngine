@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login.js';
 import Register from './pages/Register.js';
 import Dashboard from './pages/Dashboard.js';
-import Landing from './pages/Landing.js';
 import './index.css';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -24,7 +23,7 @@ export default function App() {
             </PrivateRoute>
           }
         />
-        <Route path="/" element={<Landing />} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
